@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>蕴率 · 宇宙之旅</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/": "https://cdn.jsdelivr.net/npm/three@0.160.0/"
+    }
+  }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      background: #000;
+      font-family: 'Noto Serif SC', 'Georgia', serif;
+      color: #fff;
+      cursor: default;
+      user-select: none;
+    }
+    canvas { display: block; }
+
+    #app {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      overflow: hidden;
+    }
+
+    #chapter-container {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    /* ── Navigation Overlay ── */
+    #nav-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1s ease;
+    }
+    #nav-overlay.visible {
+      opacity: 1;
+      pointer-events: none;
+    }
+    #nav-overlay.visible .nav-btn {
+      pointer-events: auto;
+    }
+
+    .nav-btn {
+      display: block;
+      padding: 14px 48px;
+      margin: 10px;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 30px;
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(8px);
+      color: rgba(255,255,255,0.95);
+      font-family: 'Noto Serif SC', serif;
+      font-size: 15px;
+      letter-spacing: 4px;
+      cursor: pointer;
+      transition: all 0.4s ease;
+    }
+    .nav-btn:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.4);
+      transform: scale(1.03);
+    }
+    #btn-go-on {
+      color: rgba(255,255,255,0.95);
+      border-color: rgba(255,255,255,0.35);
+    }
+    #btn-stay {
+      color: rgba(220,220,220,0.8);
+      border-color: rgba(220,220,220,0.25);
+      font-size: 13px;
+    }
+
+    @keyframes orbPulse {
+      0%, 100% { box-shadow: 0 0 40px rgba(180,200,255,0.5), 0 0 80px rgba(120,160,255,0.3), 0 0 120px rgba(80,120,255,0.15); }
+      50% { box-shadow: 0 0 60px rgba(200,220,255,0.7), 0 0 100px rgba(140,180,255,0.4), 0 0 160px rgba(100,140,255,0.25); }
+    }
+
+    /* ── Orb burst ── */
+    .orb-burst {
+      animation: orbBurst 0.6s ease forwards !important;
+    }
+    @keyframes orbBurst {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(2.5); opacity: 0.6; }
+      100% { transform: scale(4); opacity: 0; }
+    }
+
+    /* ── Homepage specific ── */
+    #homepage-title {
+      position: absolute;
+      top: 18%;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      z-index: 10;
+      opacity: 0;
+      animation: fadeInSlow 4s ease forwards 1s;
+    }
+    #homepage-title h1 {
+      font-size: 42px;
+      font-weight: 300;
+      letter-spacing: 16px;
+      text-shadow: 0 0 30px rgba(100,160,255,0.4), 0 0 80px rgba(80,120,200,0.2);
+    }
+    #homepage-title p {
+      margin-top: 16px;
+      font-size: 13px;
+      letter-spacing: 6px;
+      color: rgba(255,255,255,0.4);
+    }
+    #start-btn {
+      position: absolute;
+      bottom: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      padding: 14px 52px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 30px;
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.7);
+      font-family: 'Noto Serif SC', serif;
+      font-size: 14px;
+      letter-spacing: 6px;
+      cursor: pointer;
+      opacity: 0;
+      animation: fadeInSlow 3s ease forwards 3s;
+      transition: all 0.4s;
+    }
+    #start-btn:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.35);
+    }
+
+    @keyframes fadeInSlow {
+      to { opacity: 1; }
+    }
+
+    /* ── Fade transition ── */
+    #fade-screen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #000;
+      z-index: 200;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1.5s ease;
+    }
+    #fade-screen.active {
+      opacity: 1;
+    }
+
+    /* ── Hint text ── */
+    #hint-text {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.25);
+      font-size: 11px;
+      letter-spacing: 3px;
+      z-index: 50;
+      transition: opacity 0.5s;
+    }
+
+    /* ── Operation hint (5s) ── */
+    #op-hint {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: rgba(255,255,255,0.35);
+      font-size: 13px;
+      letter-spacing: 4px;
+      z-index: 90;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1s ease;
+      text-align: center;
+      line-height: 2;
+    }
+    #op-hint.visible { opacity: 1; }
+
+    /* ── Floating text orbs (Stay Here) ── */
+    .float-orb {
+      position: absolute;
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 45% 40%, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #fff;
+      font-family: 'Noto Serif SC', serif;
+      font-size: 12px;
+      letter-spacing: 2px;
+      cursor: grab;
+      box-shadow: 0 0 24px rgba(255,255,255,0.1), 0 0 50px rgba(200,210,240,0.06);
+      backdrop-filter: blur(4px);
+      user-select: none;
+      z-index: 115;
+      transition: transform 0.35s ease, background 0.8s ease, box-shadow 0.8s ease, width 0.35s ease, height 0.35s ease;
+      white-space: nowrap;
+      display: flex; align-items: center; justify-content: center;
+      text-shadow: 0 0 6px rgba(255,255,255,0.4);
+    }
+    .float-orb:hover { filter: brightness(1.15); }
+    .float-orb.burst {
+      animation: orbBurst 0.5s ease forwards !important;
+      pointer-events: none;
+    }
+
+    /* ── The End overlay ── */
+    #the-end {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 95;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1.2s ease;
+    }
+    #the-end.visible { opacity: 1; }
+    #the-end span {
+      font-size: 32px;
+      letter-spacing: 12px;
+      color: rgba(255,255,255,0.7);
+      text-shadow: 0 0 30px rgba(180,200,255,0.3);
+    }
+
+    /* ── Multi-input overlay ── */
+    #multi-input-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 112;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+    }
+    #multi-input-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .mi-row {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mi-row input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.85);
+      font-family: 'Noto Serif SC', serif;
+      font-size: 15px;
+      letter-spacing: 4px;
+      text-align: center;
+      padding: 8px 16px;
+      outline: none;
+      width: 200px;
+    }
+    .mi-row input::placeholder {
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 3px;
+    }
+    .mi-add-btn, .mi-done-btn {
+      padding: 6px 18px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.6);
+      font-family: 'Noto Serif SC', serif;
+      font-size: 12px;
+      cursor: pointer;
+      letter-spacing: 2px;
+      transition: all 0.3s;
+    }
+    .mi-add-btn:hover, .mi-done-btn:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    #music-btn {
+      position:fixed;top:18px;left:18px;z-index:300;width:36px;height:36px;
+      border:1px solid rgba(255,255,255,0.2);border-radius:50%;
+      background:rgba(255,255,255,0.05);backdrop-filter:blur(6px);
+      cursor:pointer;display:flex;align-items:center;justify-content:center;
+      color:rgba(255,255,255,0.8);font-size:16px;transition:all 0.3s;
+    }
+    #music-btn:hover{background:rgba(255,255,255,0.12);}
+    #music-btn.playing{color:rgba(180,220,255,0.9);}
+    #music-file-input{display:none;}
+
+    #save-btn{
+      position:fixed;top:18px;right:18px;z-index:300;
+      padding:6px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:16px;
+      background:rgba(255,255,255,0.05);backdrop-filter:blur(6px);
+      cursor:pointer;color:rgba(255,255,255,0.8);font-family:'Noto Serif SC',serif;
+      font-size:11px;letter-spacing:2px;transition:all 0.3s;display:none;
+    }
+    #save-btn:hover{background:rgba(255,255,255,0.12);}
+
+    #save-dialog{
+      position:fixed;top:0;left:0;width:100%;height:100%;z-index:310;
+      display:none;align-items:center;justify-content:center;
+      background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);
+    }
+    #save-dialog.visible{display:flex;}
+    #save-dialog-inner{
+      background:rgba(20,25,40,0.95);border:1px solid rgba(255,255,255,0.15);
+      border-radius:16px;padding:28px 36px;text-align:center;min-width:280px;
+    }
+    #save-dialog-inner h3{font-size:14px;font-weight:300;letter-spacing:4px;margin-bottom:16px;color:rgba(255,255,255,0.7);}
+    #save-name-input{
+      background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.25);
+      color:rgba(255,255,255,0.85);font-family:'Noto Serif SC',serif;font-size:14px;
+      letter-spacing:3px;text-align:center;padding:8px 12px;outline:none;width:200px;
+    }
+    #save-name-input::placeholder{color:rgba(255,255,255,0.2);}
+    .save-dialog-btns{display:flex;gap:10px;justify-content:center;margin-top:18px;}
+    .save-dialog-btns button{
+      padding:6px 20px;border:1px solid rgba(255,255,255,0.2);border-radius:14px;
+      background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.6);
+      font-family:'Noto Serif SC',serif;font-size:11px;cursor:pointer;letter-spacing:2px;
+    }
+    .save-dialog-btns button:hover{background:rgba(255,255,255,0.1);}
+
+    #load-btn{
+      position:absolute;top:18px;right:18px;z-index:15;
+      padding:6px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:16px;
+      background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);
+      font-family:'Noto Serif SC',serif;font-size:11px;letter-spacing:2px;
+      cursor:pointer;transition:all 0.3s;opacity:0;animation:fadeInSlow 3s ease forwards 3s;
+    }
+    #load-btn:hover{background:rgba(255,255,255,0.1);}
+
+    #load-dialog{
+      position:fixed;top:0;left:0;width:100%;height:100%;z-index:310;
+      display:none;align-items:center;justify-content:center;
+      background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);
+    }
+    #load-dialog.visible{display:flex;}
+    #load-dialog-inner{
+      background:rgba(20,25,40,0.95);border:1px solid rgba(255,255,255,0.15);
+      border-radius:16px;padding:28px 36px;text-align:center;min-width:300px;max-height:60vh;overflow-y:auto;
+    }
+    #load-dialog-inner{position:relative;}
+    #load-dialog-inner h3{font-size:14px;font-weight:300;letter-spacing:4px;margin-bottom:16px;color:rgba(255,255,255,0.7);}
+    #load-clear{position:absolute;top:10px;right:10px;padding:3px 10px;border:1px solid rgba(255,100,100,0.25);border-radius:10px;background:transparent;color:rgba(255,120,120,0.5);font-size:10px;cursor:pointer;letter-spacing:1px;transition:all 0.3s;}
+    #load-clear:hover{background:rgba(255,100,100,0.1);color:rgba(255,120,120,0.8);}
+    .load-item{
+      padding:10px 16px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;
+      margin-bottom:8px;cursor:pointer;transition:all 0.3s;text-align:left;
+    }
+    .load-item:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.25);}
+    .load-item-name{color:rgba(255,255,255,0.85);font-size:13px;letter-spacing:2px;}
+    .load-item-time{color:rgba(255,255,255,0.3);font-size:10px;margin-top:4px;}
+    .load-empty{color:rgba(255,255,255,0.3);font-size:12px;padding:20px;}
+    .load-close{margin-top:14px;padding:6px 20px;border:1px solid rgba(255,255,255,0.25);border-radius:14px;background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.7);font-size:11px;cursor:pointer;}
+
+    #rainbow-overlay{
+      position:fixed;top:0;left:0;width:100%;height:100%;z-index:85;
+      pointer-events:none;opacity:0;transition:background-color 1.5s ease, opacity 0.8s ease;
+    }
+    #rainbow-overlay.visible{opacity:1;}
+
+    #continue-btn{
+      position:fixed;bottom:6%;left:50%;transform:translateX(-50%);
+      z-index:96;padding:10px 36px;
+      border:1px solid rgba(255,255,255,0.15);border-radius:24px;
+      background:rgba(255,255,255,0.04);backdrop-filter:blur(6px);
+      color:rgba(255,255,255,0.65);font-family:'Noto Serif SC',serif;
+      font-size:12px;letter-spacing:4px;cursor:pointer;
+      opacity:0;transition:opacity 2s ease, background 0.3s;
+    }
+    #continue-btn.visible{opacity:1;}
+    #continue-btn:hover{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.9);}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="chapter-container"></div>
+  </div>
+
+  <!-- Music button (top-left) -->
+  <div id="music-btn" title="背景音乐">♪</div>
+  <input type="file" id="music-file-input" accept="audio/*" />
+
+  <!-- Save button (top-right, hidden on homepage) -->
+  <button id="save-btn">存档</button>
+
+  <!-- Save dialog (simplified - removed) -->
+
+  <!-- Load dialog -->
+  <div id="load-dialog">
+    <div id="load-dialog-inner">
+      <h3>读 取 存 档</h3>
+      <button id="load-clear">清空</button>
+      <div id="load-list"></div>
+      <button class="load-close" id="load-close">关闭</button>
+    </div>
+  </div>
+
+  <!-- Rainbow color overlay -->
+  <div id="rainbow-overlay"></div>
+
+  <!-- Navigation -->
+  <div id="nav-overlay">
+    <button class="nav-btn" id="btn-go-on">Go On</button>
+    <button class="nav-btn" id="btn-stay">Stay Here</button>
+  </div>
+
+  <!-- Multi-input overlay (replaces single name input) -->
+  <div id="multi-input-overlay"></div>
+
+  <!-- The End -->
+  <div id="the-end"><span>The End</span></div>
+
+  <!-- Operation hint -->
+  <div id="op-hint"></div>
+
+  <!-- Fade -->
+  <div id="fade-screen"></div>
+
+  <!-- Hint -->
+  <div id="hint-text"></div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
